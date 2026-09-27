@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Playlist Sorter",
+  "version": "0.1.0",
+  "description": "Copy any YouTube playlist into a new playlist on your account, sorted however you like.",
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["src/parse.js", "src/sort.js", "src/innertube.js", "src/ui.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    }
+  ]
+}

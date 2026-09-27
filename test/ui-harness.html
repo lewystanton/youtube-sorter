@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- Renders the real ui.js with a fake InnerTube layer. Open with ?list=X, add &dark for dark mode. -->
+<html><head><meta charset="utf-8"><title>UI harness</title>
+<style>body{margin:0;min-height:100vh;font-family:Roboto,Arial;background:#fff} html[dark] body{background:#0f0f0f}</style></head>
+<body>
+<script>
+  if (location.search.includes('dark')) document.documentElement.setAttribute('dark', '');
+  if (!location.search.includes('list=')) history.replaceState(null, '', '/playlist?list=PLdemo' + (location.search.includes('dark') ? '&dark' : ''));
+  try { localStorage.removeItem('ytPlaylistSorter.links.v1'); } catch {}
+</script>
+<script src="../src/parse.js"></script>
+<script src="../src/sort.js"></script>
+<script>
+  const ns = globalThis.__ytPlaylistSorter;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const titles = ['A deliberately long video title that is much too wide to fit on one line of the panel', 'Episode 1: Pilot', 'Part 10: Endgame', 'Part 2: Beginnings', 'Behind the scenes', 'Q&A special', 'Tutorial: getting started', 'Highlights compilation', 'Live session replay', 'Bonus episode'];
+  const items = Array.from({ length: 64 }, (_, i) => ({
+    videoId: 'vid' + i, index: i, title: titles[i % 10] + (i >= 10 ? ` (${i})` : ''),
+    channel: ['Channel A', 'Channel B', 'Channel C'][i % 3], durationSec: 200 + ((i * 97) % 1400),
+    views: 1e5 * ((i * 37) % 50), published: Date.UTC(2013 + (i % 12), (i * 5) % 12, 1 + (i % 27)), exact: false,
+  }));
+  // Stateful fake of the InnerTube layer: playlists live in window.__db.
+  const byId = Object.fromEntries(items.map((v) => [v.videoId, v]));
+  const db = (window.__db = {
+    PLdemo: { title: 'Demo Playlist', owner: 'UCsomeoneelse', ids: items.map((v) => v.videoId) },
+    PLmine: { title: 'Demo Playlist (sorted)', owner: 'UCme', ids: items.slice(0, 40).map((v) => v.videoId) },
+  });
+  window.__addSourceVideo = (v) => { byId[v.videoId] = v; db.PLdemo.ids.push(v.videoId); };
+  Object.assign(ns, {
+    isLoggedIn: () => true,
+    fetchPlaylist: async (id, p) => {
+      await sleep(80);
+      const pl = db[id];
+      if (!pl) throw new Error('HTTP 400');
+      p?.(pl.ids.length);
+      return { title: pl.title, ownerId: pl.owner, items: pl.ids.map((vid, i) => ({ ...byId[vid], index: i })) };
+    },
+    fetchDetails: async (list, p) => { for (let i = 0; i < list.length; i++) { list[i].exact = byId[list[i].videoId].exact = true; } p?.(list.length, list.length); },
+    createPlaylist: async (title, privacy, first) => { const id = 'PLcopy' + Object.keys(db).length; db[id] = { title, owner: 'UCme', ids: [first] }; return id; },
+    myChannelId: async () => 'UCme',
+    deletePlaylist: async (id) => { delete db[id]; window.__log.push(['delete', id]); },
+    addVideos: async (id, ids, p) => { db[id].ids.push(...ids); window.__log.push(['add', id, ids.length]); p?.(ids.length, ids.length); },
+    removeVideos: async (id, ids, p) => { db[id].ids = db[id].ids.filter((x) => !ids.includes(x)); window.__log.push(['remove', id, ids.length]); p?.(ids.length, ids.length); },
+    unsavePlaylist: async (id) => { window.__log.push(['unsave', id]); },
+    sleep: () => sleep(10),
+  });
+  window.__log = [];
+</script>
+<script src="../src/ui.js"></script>
+</body></html>
